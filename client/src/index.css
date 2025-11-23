@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+.pointer{
+  cursor: pointer;
+}
+
+.white-font{
+  color: #fff;
+}
