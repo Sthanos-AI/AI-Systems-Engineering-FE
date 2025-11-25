@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Transaction } from '../types';
 
 // Mock Data
@@ -16,14 +17,11 @@ export const apiService = {
  // 1. Get API Key
   getApiKey: async (): Promise<void> => {    
     try {
-      const response = await fetch('http://localhost:8000/api/ai_key', { method: 'GET' });
-      if (!response.ok) throw new Error("Failed to retrieve API Key.");
-      
-      const apiLink = await response.text();
-      if (!apiLink) throw new Error("Failed to retrieve API Key.");
-      
+      const response = await axios.get('http://localhost:8000/api/ai_key', { responseType: 'text' });
+      const data = response.data
+      if (!data) throw new Error("Failed to retrieve API Key.");            
       console.log("Successfully fetched API key.");
-      apiKey = apiLink;
+      apiKey = data;
 
     } catch (error) {
       console.error("Failed to retrieve API Key.", error);
@@ -33,12 +31,9 @@ export const apiService = {
   // 2. Fetches a Link Token from the backend
   fetchLinkToken: async (): Promise<string> => {
     try {
-      const response = await fetch('http://localhost:8000/api/create_link_token', { method: 'POST' });
-      if (!response.ok) throw new Error("Backend failed to return link token.");
-      
-      const data = await response.json();
-      if (!data.link_token) throw new Error("Link token missing in response.");
-      
+      const response = await axios.post('http://localhost:8000/api/create_link_token');
+      const data = response.data;
+      if (!data.link_token) throw new Error("Link token missing in response.");      
       console.log("Successfully fetched link token from API.");
       return data.link_token;
       
@@ -56,15 +51,10 @@ export const apiService = {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/exchange_public_token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ public_token: publicToken }),
+      const response = await axios.post('http://localhost:8000/api/exchange_public_token', { 
+        public_token: publicToken 
       });
-
-      if (!response.ok) throw new Error("Backend failed to exchange public token.");
-
-      const data = await response.json();
+      const data = response.data;
       if (!data.transactions || data.transactions.length === 0) {
         console.warn("API returned empty transaction list. Using mock as fallback.");
         return { transactions: MOCK_TRANSACTIONS, isMock: false };
@@ -86,10 +76,9 @@ export const apiService = {
     // In a real application, this would format the transactions and call the Gemini API.
     const userQuery = `Analyze the following financial transactions based on the query: "${query}". 
     Transactions: ${JSON.stringify(transactions.slice(0, 10))}`; // Send a subset to save tokens.
-    
+    console.log(apiKey);
     const systemPrompt = "Act as a financial analyst. Provide a concise, single-paragraph summary or response to the user's query about their transactions. Format key findings using **bold** markdown.";
-    const apiKey = 'AIzaSyAQej2TR0Gj2B8CizJFtgMrfAJX_YyxLQU';
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey.replace(/^['"]|['";]$/g, '').trim()}`;
 
     const payload = {
         contents: [{ parts: [{ text: userQuery }] }],
@@ -98,15 +87,9 @@ export const apiService = {
     };
 
     try {
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) throw new Error(`Gemini API failed with status ${response.status}`);
-        
-        const result = await response.json();
+        const response = await axios.post(apiUrl, payload);        
+        const result = response.data;
+        if (!result) throw new Error(`Gemini API failed with status ${response.status}`);
         const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (text) {
